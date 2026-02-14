@@ -9,20 +9,25 @@ import (
 	"strings"
 
 	"github.com/mike/finddups/db"
+	"github.com/mike/finddups/model"
 )
 
 // Handler holds the database store and provides HTTP handlers for the API.
 type Handler struct {
-	store *db.Store
+	store     *db.Store
+	templates *TemplateManager
 }
 
-// NewHandler creates a new API handler with the given database store.
-func NewHandler(store *db.Store) *Handler {
-	return &Handler{store: store}
+// NewHandler creates a new API handler with the given database store and template manager.
+func NewHandler(store *db.Store, templates *TemplateManager) *Handler {
+	return &Handler{
+		store:     store,
+		templates: templates,
+	}
 }
 
 // GetStatus handles GET /api/status
-// Returns current scan state, duplicate summary, and pending deletions count.
+// Returns current scan state, duplicate summary, and pending deletions count as HTML.
 func (h *Handler) GetStatus(w http.ResponseWriter, r *http.Request) error {
 	state, err := h.store.GetScanState()
 	if err != nil {
@@ -39,18 +44,23 @@ func (h *Handler) GetStatus(w http.ResponseWriter, r *http.Request) error {
 		return fmt.Errorf("get pending deletions: %w", err)
 	}
 
-	response := map[string]interface{}{
-		"scan_state":        state,
-		"summary":           summary,
-		"pending_deletions": pendingDels,
+	data := struct {
+		ScanState        *db.ScanStateRow
+		Summary          *db.DupGroupSummary
+		PendingDeletions int64
+	}{
+		ScanState:        state,
+		Summary:          summary,
+		PendingDeletions: pendingDels,
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	return json.NewEncoder(w).Encode(response)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	return h.templates.Render(w, "status.html", data)
 }
 
-// GetGroups handles GET /api/groups?sort=wasted&min_size=0&limit=50
-// Returns a list of duplicate groups with optional sorting and filtering.
+// GetGroups handles GET /api/groups?sort=wasted&min_size=0&limit=100
+// Returns a list of duplicate groups with optional sorting and filtering as HTML.
+// If limit is not specified or 0, all groups are returned.
 func (h *Handler) GetGroups(w http.ResponseWriter, r *http.Request) error {
 	sortBy := r.URL.Query().Get("sort")
 	if sortBy == "" {
@@ -59,32 +69,33 @@ func (h *Handler) GetGroups(w http.ResponseWriter, r *http.Request) error {
 
 	minSize, _ := strconv.ParseInt(r.URL.Query().Get("min_size"), 10, 64)
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	if limit == 0 {
-		limit = 50
-	}
+	// No default limit - show all groups unless explicitly limited
 
 	groups, err := h.store.GetDupGroups(sortBy, minSize, limit)
 	if err != nil {
 		return fmt.Errorf("get groups: %w", err)
 	}
 
-	response := map[string]interface{}{
-		"groups": groups,
-		"limit":  limit,
+	data := struct {
+		Groups []model.DuplicateGroup
+		Limit  int
+	}{
+		Groups: groups,
+		Limit:  limit,
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	return json.NewEncoder(w).Encode(response)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	return h.templates.Render(w, "groups-list.html", data)
 }
 
 // GetGroup handles GET /api/groups/:id
-// Returns details for a specific duplicate group.
+// Returns details for a specific duplicate group as HTML for modal content.
 func (h *Handler) GetGroup(w http.ResponseWriter, r *http.Request) error {
 	groupID, err := parseIDFromPath(r.URL.Path, "/api/groups/")
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "invalid group ID"})
+		fmt.Fprintf(w, `<div class="bg-red-100 text-red-800 p-4 rounded">Invalid group ID</div>`)
 		return nil
 	}
 
@@ -94,31 +105,33 @@ func (h *Handler) GetGroup(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	if len(files) == 0 {
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(map[string]string{"error": "group not found"})
+		fmt.Fprintf(w, `<div class="bg-yellow-100 text-yellow-800 p-4 rounded">Group not found</div>`)
 		return nil
 	}
 
-	// Construct group response
-	totalSize := files[0].Size * int64(len(files))
+	// Construct group data
 	wastedSize := files[0].Size * int64(len(files)-1)
 
-	response := map[string]interface{}{
-		"id":           groupID,
-		"size":         files[0].Size,
-		"file_count":   len(files),
-		"wasted_bytes": wastedSize,
-		"total_bytes":  totalSize,
-		"files":        files,
+	data := struct {
+		GroupID     int64
+		Files       []model.FileRecord
+		Size        int64
+		WastedBytes int64
+	}{
+		GroupID:     groupID,
+		Files:       files,
+		Size:        files[0].Size,
+		WastedBytes: wastedSize,
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	return json.NewEncoder(w).Encode(response)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	return h.templates.Render(w, "group-detail.html", data)
 }
 
 // GetDeletions handles GET /api/deletions
-// Returns all pending deletions.
+// Returns all pending deletions as HTML.
 func (h *Handler) GetDeletions(w http.ResponseWriter, r *http.Request) error {
 	deletions, err := h.store.GetPendingDeletions()
 	if err != nil {
@@ -132,14 +145,18 @@ func (h *Handler) GetDeletions(w http.ResponseWriter, r *http.Request) error {
 		}
 	}
 
-	response := map[string]interface{}{
-		"deletions":   deletions,
-		"total_count": len(deletions),
-		"total_bytes": totalBytes,
+	data := struct {
+		Deletions  []model.Deletion
+		TotalCount int
+		TotalBytes int64
+	}{
+		Deletions:  deletions,
+		TotalCount: len(deletions),
+		TotalBytes: totalBytes,
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	return json.NewEncoder(w).Encode(response)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	return h.templates.Render(w, "deletions-list.html", data)
 }
 
 // MarkGroupForDeletion handles POST /api/groups/:groupId/mark
@@ -201,11 +218,13 @@ func (h *Handler) MarkGroupForDeletion(w http.ResponseWriter, r *http.Request) e
 		}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	return json.NewEncoder(w).Encode(map[string]interface{}{
-		"status":       "success",
-		"marked_count": markedCount,
-	})
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	fmt.Fprintf(w, `<div class="bg-green-100 text-green-800 p-4 rounded">
+		<strong>Success!</strong> Marked %d files for deletion.
+		<button onclick="closeModal(); htmx.ajax('GET', '/api/groups?sort=wasted', {target: '#groups-list'})"
+		        class="ml-4 text-green-600 hover:text-green-800 underline">Close</button>
+	</div>`, markedCount)
+	return nil
 }
 
 // UnmarkDeletion handles DELETE /api/deletions/:fileId
@@ -213,9 +232,9 @@ func (h *Handler) MarkGroupForDeletion(w http.ResponseWriter, r *http.Request) e
 func (h *Handler) UnmarkDeletion(w http.ResponseWriter, r *http.Request) error {
 	fileID, err := parseIDFromPath(r.URL.Path, "/api/deletions/")
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "invalid file ID"})
+		fmt.Fprintf(w, `<div class="bg-red-100 text-red-800 p-4 rounded">Invalid file ID</div>`)
 		return nil
 	}
 
@@ -223,8 +242,10 @@ func (h *Handler) UnmarkDeletion(w http.ResponseWriter, r *http.Request) error {
 		return fmt.Errorf("unmark file %d: %w", fileID, err)
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	return json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+	// Return empty response - htmx will remove the element via swap
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	return nil
 }
 
 // ExecuteDeletions handles POST /api/deletions/execute
@@ -252,13 +273,21 @@ func (h *Handler) ExecuteDeletions(w http.ResponseWriter, r *http.Request) error
 				totalBytes += info.Size()
 			}
 		}
-		w.Header().Set("Content-Type", "application/json")
-		return json.NewEncoder(w).Encode(map[string]interface{}{
-			"dry_run":     true,
-			"deletions":   deletions,
-			"total_count": len(deletions),
-			"total_bytes": totalBytes,
-		})
+
+		data := struct {
+			DryRun     bool
+			Deletions  []model.Deletion
+			TotalCount int
+			TotalBytes int64
+		}{
+			DryRun:     true,
+			Deletions:  deletions,
+			TotalCount: len(deletions),
+			TotalBytes: totalBytes,
+		}
+
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		return h.templates.Render(w, "deletions-result.html", data)
 	}
 
 	// Execute deletions
@@ -286,14 +315,22 @@ func (h *Handler) ExecuteDeletions(w http.ResponseWriter, r *http.Request) error
 		}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	return json.NewEncoder(w).Encode(map[string]interface{}{
-		"dry_run":     false,
-		"deleted":     deleted,
-		"failed":      failed,
-		"freed_bytes": freedBytes,
-		"errors":      errors,
-	})
+	data := struct {
+		DryRun     bool
+		Deleted    int
+		Failed     int
+		FreedBytes int64
+		Errors     []map[string]interface{}
+	}{
+		DryRun:     false,
+		Deleted:    deleted,
+		Failed:     failed,
+		FreedBytes: freedBytes,
+		Errors:     errors,
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	return h.templates.Render(w, "deletions-result.html", data)
 }
 
 // parseIDFromPath extracts an integer ID from a URL path.

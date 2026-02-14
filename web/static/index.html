@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>finddups - Duplicate File Manager</title>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://unpkg.com/htmx-ext-json-enc@2.0.1/json-enc.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-50">
@@ -46,7 +47,7 @@
             <div class="bg-white rounded-lg shadow p-6">
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-2xl font-bold">Duplicate Groups</h2>
-                    <button hx-get="/api/groups?sort=wasted&limit=50"
+                    <button hx-get="/api/groups?sort=wasted"
                             hx-target="#groups-list"
                             hx-swap="innerHTML"
                             class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md">
@@ -86,7 +87,7 @@
 
         <!-- Review Modal -->
         <div id="review-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex items-center justify-center">
-            <div class="bg-white rounded-lg shadow-xl p-6 max-w-2xl w-full max-h-96 overflow-y-auto">
+            <div class="bg-white rounded-lg shadow-xl p-6 max-w-2xl w-full max-h-[85vh] overflow-y-auto">
                 <div id="modal-content"></div>
             </div>
         </div>

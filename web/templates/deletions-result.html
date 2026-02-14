@@ -1,0 +1,61 @@
+{{if .DryRun}}
+<div class="bg-blue-50 border border-blue-200 rounded p-4">
+    <h4 class="font-semibold text-blue-900 mb-2 flex items-center">
+        <svg class="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        Dry Run Preview
+    </h4>
+    <p class="text-blue-800">
+        Would delete <strong class="font-semibold">{{.TotalCount}}</strong> files,
+        freeing <strong class="font-semibold">{{formatBytes .TotalBytes}}</strong>
+    </p>
+    {{if .Deletions}}
+    <details class="mt-3">
+        <summary class="cursor-pointer text-sm text-blue-700 hover:text-blue-900">Show file list ({{len .Deletions}} files)</summary>
+        <ul class="mt-2 text-xs text-blue-800 space-y-1 max-h-48 overflow-y-auto">
+            {{range .Deletions}}
+            <li class="truncate" title="{{.Path}}">{{.Path}}</li>
+            {{end}}
+        </ul>
+    </details>
+    {{end}}
+</div>
+{{else}}
+<div class="bg-green-50 border border-green-200 rounded p-4">
+    <h4 class="font-semibold text-green-900 mb-2 flex items-center">
+        <svg class="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        Deletion Complete
+    </h4>
+    <p class="text-green-800">
+        Successfully deleted <strong class="font-semibold">{{.Deleted}}</strong> files,
+        freed <strong class="font-semibold">{{formatBytes .FreedBytes}}</strong>
+    </p>
+
+    {{if gt .Failed 0}}
+    <div class="mt-3 p-2 bg-red-50 border border-red-200 rounded">
+        <p class="text-red-700">
+            <strong class="font-semibold">{{.Failed}}</strong> files failed to delete
+        </p>
+        {{if .Errors}}
+        <details class="mt-2">
+            <summary class="cursor-pointer text-sm text-red-600 hover:text-red-800">Show errors</summary>
+            <ul class="mt-2 text-xs text-red-600 space-y-1 max-h-32 overflow-y-auto">
+                {{range .Errors}}
+                <li class="truncate" title="{{.error}}">{{.path}}: {{.error}}</li>
+                {{end}}
+            </ul>
+        </details>
+        {{end}}
+    </div>
+    {{end}}
+</div>
+
+<!-- Trigger refresh of deletions list after execution -->
+<div hx-get="/api/deletions"
+     hx-target="#deletions-list"
+     hx-swap="innerHTML"
+     hx-trigger="load"></div>
+{{end}}

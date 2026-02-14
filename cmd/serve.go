@@ -35,8 +35,14 @@ func RunServe(args []string) error {
 	}
 	defer store.Close()
 
-	// Create API handler
-	handler := api.NewHandler(store)
+	// Initialize template manager
+	templates, err := api.NewTemplateManager(web.TemplateFiles)
+	if err != nil {
+		return fmt.Errorf("load templates: %w", err)
+	}
+
+	// Create API handler with templates
+	handler := api.NewHandler(store, templates)
 
 	// Set up HTTP routes
 	mux := http.NewServeMux()

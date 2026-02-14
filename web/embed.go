@@ -8,3 +8,8 @@ import "embed"
 //
 //go:embed static/*
 var StaticFiles embed.FS
+
+// TemplateFiles embeds all template files for server-side rendering.
+//
+//go:embed templates/*.html
+var TemplateFiles embed.FS
