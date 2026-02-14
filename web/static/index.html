@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>finddups - Duplicate File Manager</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50">
+    <div class="container mx-auto p-6 max-w-7xl">
+        <header class="mb-8">
+            <h1 class="text-4xl font-bold text-gray-800">finddups</h1>
+            <p class="text-gray-600 mt-2">Duplicate File Manager</p>
+        </header>
+
+        <!-- Dashboard -->
+        <div id="dashboard"
+             class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8"
+             hx-get="/api/status"
+             hx-trigger="load, every 10s"
+             hx-swap="innerHTML">
+            <div class="bg-white rounded-lg shadow p-6">
+                <p class="text-gray-500">Loading...</p>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="mb-6 border-b border-gray-200">
+            <nav class="-mb-px flex space-x-8">
+                <button id="tab-groups"
+                        onclick="showTab('groups')"
+                        class="tab-active border-blue-500 text-blue-600 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                    Duplicate Groups
+                </button>
+                <button id="tab-deletions"
+                        onclick="showTab('deletions')"
+                        class="tab-inactive border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                    Pending Deletions
+                </button>
+            </nav>
+        </div>
+
+        <!-- Groups View -->
+        <div id="view-groups" class="tab-content">
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-bold">Duplicate Groups</h2>
+                    <button hx-get="/api/groups?sort=wasted&limit=50"
+                            hx-target="#groups-list"
+                            hx-swap="innerHTML"
+                            class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md">
+                        Load Groups
+                    </button>
+                </div>
+                <div id="groups-list"></div>
+            </div>
+        </div>
+
+        <!-- Deletions View -->
+        <div id="view-deletions" class="tab-content hidden">
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-bold">Pending Deletions</h2>
+                    <div class="space-x-2">
+                        <button hx-post="/api/deletions/execute"
+                                hx-vals='{"dry_run": true}'
+                                hx-target="#deletions-result"
+                                hx-swap="innerHTML"
+                                class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md">
+                            Preview
+                        </button>
+                        <button onclick="confirmExecute()"
+                                class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md">
+                            Execute Deletions
+                        </button>
+                    </div>
+                </div>
+                <div id="deletions-list"
+                     hx-get="/api/deletions"
+                     hx-trigger="load"
+                     hx-swap="innerHTML"></div>
+                <div id="deletions-result" class="mt-4"></div>
+            </div>
+        </div>
+
+        <!-- Review Modal -->
+        <div id="review-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex items-center justify-center">
+            <div class="bg-white rounded-lg shadow-xl p-6 max-w-2xl w-full max-h-96 overflow-y-auto">
+                <div id="modal-content"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+
+    <!-- htmx response templates for status -->
+    <script type="text/html" id="status-template">
+        <!-- This would be replaced by actual htmx response, but we'll use JS to render -->
+    </script>
+</body>
+</html>
