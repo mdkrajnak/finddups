@@ -32,20 +32,63 @@ function showTab(tabName) {
     }
 }
 
+// Preview deletions (dry run)
+function previewDeletions() {
+    fetch('/api/deletions/execute', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ dry_run: true })
+    })
+    .then(response => {
+        if (response.ok) {
+            return response.text();
+        } else {
+            throw new Error('Failed to preview deletions');
+        }
+    })
+    .then(html => {
+        // Display the preview result
+        document.getElementById('deletions-result').innerHTML = html;
+    })
+    .catch(error => {
+        console.error('Preview failed:', error);
+        alert('Failed to preview deletions: ' + error.message);
+    });
+}
+
 // Confirmation dialog for executing deletions
 function confirmExecute() {
     if (confirm('Are you sure you want to delete all marked files? This action cannot be undone.')) {
-        // Trigger the actual execution via htmx
-        htmx.ajax('POST', '/api/deletions/execute', {
-            target: '#deletions-result',
-            swap: 'innerHTML',
-            values: { dry_run: false }
-        }).then(() => {
+        // Send JSON request manually (htmx values sends form data, not JSON)
+        fetch('/api/deletions/execute', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ dry_run: false })
+        })
+        .then(response => {
+            if (response.ok) {
+                return response.text();
+            } else {
+                throw new Error('Failed to execute deletions');
+            }
+        })
+        .then(html => {
+            // Display the result
+            document.getElementById('deletions-result').innerHTML = html;
+
             // Refresh the deletions list after execution
             htmx.ajax('GET', '/api/deletions', {
                 target: '#deletions-list',
                 swap: 'innerHTML'
             });
+        })
+        .catch(error => {
+            console.error('Execution failed:', error);
+            alert('Failed to execute deletions: ' + error.message);
         });
     }
 }
