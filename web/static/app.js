@@ -252,4 +252,17 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
             });
         }
     }
+
+    // When a file is unmarked from deletions, refresh groups list
+    // to update "Rereview" back to "Review" if all files in a group are unmarked
+    if (evt.detail.successful &&
+        evt.detail.xhr.responseURL.includes('/api/deletions/') &&
+        evt.detail.xhr.method === 'DELETE') {
+
+        // Refresh the groups list to update button text
+        htmx.ajax('GET', '/api/groups?sort=wasted', {
+            target: '#groups-list',
+            swap: 'innerHTML'
+        });
+    }
 });

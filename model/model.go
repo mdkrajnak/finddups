@@ -18,12 +18,13 @@ type FileRecord struct {
 
 // DuplicateGroup represents a group of files with identical content.
 type DuplicateGroup struct {
-	ID          int64        `json:"id"`
-	Size        int64        `json:"size"`
-	FullHash    string       `json:"hash"`
-	FileCount   int          `json:"file_count"`
-	WastedBytes int64        `json:"wasted_bytes"`
-	Files       []FileRecord `json:"files"`
+	ID             int64        `json:"id"`
+	Size           int64        `json:"size"`
+	FullHash       string       `json:"hash"`
+	FileCount      int          `json:"file_count"`
+	WastedBytes    int64        `json:"wasted_bytes"`
+	HasMarkedFiles bool         `json:"has_marked_files"`
+	Files          []FileRecord `json:"files"`
 }
 
 // ScanState tracks overall scan progress.

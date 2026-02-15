@@ -17,8 +17,9 @@
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-semibold">{{formatBytes .WastedBytes}}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm">
                     <button onclick="openModal({{.ID}})"
+                            data-group-id="{{.ID}}"
                             class="text-blue-600 hover:text-blue-800 font-medium hover:underline">
-                        Review
+                        {{if .HasMarkedFiles}}Rereview{{else}}Review{{end}}
                     </button>
                 </td>
             </tr>

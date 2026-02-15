@@ -354,13 +354,26 @@ func (s *Store) GetDupGroups(sortBy string, minSize int64, limit int) ([]model.D
 		return nil, err
 	}
 
-	// Load files for each group
+	// Load files for each group and check if any are marked for deletion
 	for i := range groups {
 		files, err := s.GetGroupFiles(groups[i].ID)
 		if err != nil {
 			return nil, err
 		}
 		groups[i].Files = files
+
+		// Check if any files in this group are marked for deletion
+		var markedCount int
+		for _, f := range files {
+			err := s.db.QueryRow(`
+				SELECT COUNT(*) FROM deletions
+				WHERE file_id = ? AND status = 'pending'
+			`, f.ID).Scan(&markedCount)
+			if err == nil && markedCount > 0 {
+				groups[i].HasMarkedFiles = true
+				break
+			}
+		}
 	}
 	return groups, nil
 }
