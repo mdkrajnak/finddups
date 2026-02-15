@@ -114,16 +114,43 @@ func (h *Handler) GetGroup(w http.ResponseWriter, r *http.Request) error {
 	// Construct group data
 	wastedSize := files[0].Size * int64(len(files)-1)
 
+	// Check which files are marked for deletion to identify the keeper
+	var keeperFileID int64
+	markedFiles := make(map[int64]bool)
+
+	for _, f := range files {
+		var count int
+		err := h.store.DB().QueryRow(`
+			SELECT COUNT(*) FROM deletions
+			WHERE file_id = ? AND status = 'pending'
+		`, f.ID).Scan(&count)
+		if err == nil && count > 0 {
+			markedFiles[f.ID] = true
+		}
+	}
+
+	// If some files are marked but not all, find the keeper
+	if len(markedFiles) > 0 && len(markedFiles) < len(files) {
+		for _, f := range files {
+			if !markedFiles[f.ID] {
+				keeperFileID = f.ID
+				break
+			}
+		}
+	}
+
 	data := struct {
-		GroupID     int64
-		Files       []model.FileRecord
-		Size        int64
-		WastedBytes int64
+		GroupID      int64
+		Files        []model.FileRecord
+		Size         int64
+		WastedBytes  int64
+		KeeperFileID int64
 	}{
-		GroupID:     groupID,
-		Files:       files,
-		Size:        files[0].Size,
-		WastedBytes: wastedSize,
+		GroupID:      groupID,
+		Files:        files,
+		Size:         files[0].Size,
+		WastedBytes:  wastedSize,
+		KeeperFileID: keeperFileID,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
