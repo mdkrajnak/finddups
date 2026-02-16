@@ -1,10 +1,13 @@
 package api
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -369,4 +372,170 @@ func parseIDFromPath(path string, prefix string, suffix ...string) (int64, error
 		idStr = strings.TrimSuffix(idStr, s)
 	}
 	return strconv.ParseInt(idStr, 10, 64)
+}
+
+// GetFilePreview handles GET /api/files/:id/preview
+// Serves image files securely with path traversal protection.
+func (h *Handler) GetFilePreview(w http.ResponseWriter, r *http.Request) error {
+	// Extract file ID from URL
+	fileID, err := parseIDFromPath(r.URL.Path, "/api/files/", "/preview")
+	if err != nil {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "Invalid file ID")
+		return nil
+	}
+
+	// Query database for file path
+	var filePath string
+	err = h.store.DB().QueryRow(`SELECT path FROM files WHERE id = ?`, fileID).Scan(&filePath)
+	if err == sql.ErrNoRows {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprintf(w, "File not found in database")
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("query file path: %w", err)
+	}
+
+	// Get scan root from scan state
+	state, err := h.store.GetScanState()
+	if err != nil {
+		return fmt.Errorf("get scan state: %w", err)
+	}
+	if state == nil || state.RootPath == "" {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, "No scan root configured")
+		return nil
+	}
+
+	// Validate file path is within scan root (security check)
+	if err := validateFilePath(filePath, state.RootPath); err != nil {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusForbidden)
+		fmt.Fprintf(w, "Access denied: %v", err)
+		return nil
+	}
+
+	// Check if file is an image
+	if !isImageFile(filePath) {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "File is not an image")
+		return nil
+	}
+
+	// Open and serve the file
+	file, err := os.Open(filePath)
+	if err != nil {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprintf(w, "File not found on disk")
+		return nil
+	}
+	defer file.Close()
+
+	// Get file info for size and modtime
+	info, err := file.Stat()
+	if err != nil {
+		return fmt.Errorf("stat file: %w", err)
+	}
+
+	// Ensure it's a regular file (not a directory or device)
+	if !info.Mode().IsRegular() {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusForbidden)
+		fmt.Fprintf(w, "Not a regular file")
+		return nil
+	}
+
+	// Set content type based on file extension
+	contentType := detectImageContentType(filePath)
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Cache-Control", "public, max-age=3600")
+
+	// Serve the file content
+	http.ServeContent(w, r, filepath.Base(filePath), info.ModTime(), file)
+	return nil
+}
+
+// validateFilePath ensures the requested file is within the scan root.
+// This prevents path traversal attacks.
+func validateFilePath(filePath, scanRoot string) error {
+	// Clean paths
+	cleanFile := filepath.Clean(filePath)
+	cleanRoot := filepath.Clean(scanRoot)
+
+	// Resolve symlinks to prevent symlink attacks
+	resolvedFile, err := filepath.EvalSymlinks(cleanFile)
+	if err != nil {
+		slog.Warn("Failed to resolve symlinks", "path", cleanFile, "err", err)
+		return fmt.Errorf("invalid file path")
+	}
+
+	resolvedRoot, err := filepath.EvalSymlinks(cleanRoot)
+	if err != nil {
+		slog.Warn("Failed to resolve scan root symlinks", "path", cleanRoot, "err", err)
+		return fmt.Errorf("invalid scan root")
+	}
+
+	// Make both paths absolute
+	absFile, err := filepath.Abs(resolvedFile)
+	if err != nil {
+		return fmt.Errorf("invalid file path")
+	}
+
+	absRoot, err := filepath.Abs(resolvedRoot)
+	if err != nil {
+		return fmt.Errorf("invalid scan root")
+	}
+
+	// Compute relative path from root to file
+	relPath, err := filepath.Rel(absRoot, absFile)
+	if err != nil {
+		slog.Warn("Path traversal attempt detected", "file", absFile, "root", absRoot)
+		return fmt.Errorf("path outside scan root")
+	}
+
+	// Reject if relative path tries to escape (starts with ..)
+	if strings.HasPrefix(relPath, "..") {
+		slog.Warn("Path traversal attempt blocked", "file", absFile, "root", absRoot, "rel", relPath)
+		return fmt.Errorf("path outside scan root")
+	}
+
+	return nil
+}
+
+// isImageFile checks if the file has an image extension.
+func isImageFile(path string) bool {
+	ext := strings.ToLower(filepath.Ext(path))
+	switch ext {
+	case ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".svg":
+		return true
+	default:
+		return false
+	}
+}
+
+// detectImageContentType returns the MIME type for an image file.
+func detectImageContentType(path string) string {
+	ext := strings.ToLower(filepath.Ext(path))
+	switch ext {
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".png":
+		return "image/png"
+	case ".gif":
+		return "image/gif"
+	case ".webp":
+		return "image/webp"
+	case ".bmp":
+		return "image/bmp"
+	case ".svg":
+		return "image/svg+xml"
+	default:
+		return "application/octet-stream"
+	}
 }

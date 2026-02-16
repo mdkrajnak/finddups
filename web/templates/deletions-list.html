@@ -9,6 +9,15 @@
 <div class="space-y-2">
     {{range .Deletions}}
     <div id="deletion-{{.ID}}" class="flex justify-between items-center p-3 bg-white border rounded hover:bg-gray-50 transition-colors">
+        {{if isImage .Path}}
+        <div class="mr-3 flex-shrink-0">
+            <img src="/api/files/{{.FileID}}/preview"
+                 alt="Preview of {{basename .Path}}"
+                 class="preview-thumbnail w-20 h-20 object-cover rounded border border-gray-300 cursor-pointer hover:opacity-80 transition-opacity"
+                 onclick="openImageModal({{.FileID}}, '{{basename .Path}}');"
+                 onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2280%22 height=%2280%22%3E%3Crect fill=%22%23ddd%22 width=%2280%22 height=%2280%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 fill=%22%23999%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2210%22%3EError%3C/text%3E%3C/svg%3E';">
+        </div>
+        {{end}}
         <div class="flex-1 min-w-0 mr-4">
             <p class="text-sm font-medium text-gray-900 truncate" title="{{.Path}}">{{basename .Path}}</p>
             <p class="text-xs text-gray-500 truncate">{{dirname .Path}}</p>

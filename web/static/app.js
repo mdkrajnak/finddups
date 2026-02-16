@@ -266,3 +266,37 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
         });
     }
 });
+
+// Image preview modal management
+function openImageModal(fileId, filename) {
+    const modal = document.getElementById('image-modal');
+    const img = document.getElementById('image-modal-img');
+    const title = document.getElementById('image-modal-title');
+
+    if (modal && img && title) {
+        img.src = `/api/files/${fileId}/preview`;
+        title.textContent = filename;
+        modal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+function closeImageModal() {
+    const modal = document.getElementById('image-modal');
+    const img = document.getElementById('image-modal-img');
+
+    if (modal && img) {
+        modal.classList.add('hidden');
+        img.src = ''; // Stop loading
+        document.body.style.overflow = '';
+    }
+}
+
+// Keyboard shortcut: Escape to close
+document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeImageModal();
+        }
+    });
+});

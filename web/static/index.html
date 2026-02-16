@@ -54,7 +54,10 @@
                         Load Groups
                     </button>
                 </div>
-                <div id="groups-list"></div>
+                <div id="groups-list"
+                     hx-get="/api/groups?sort=wasted"
+                     hx-trigger="load"
+                     hx-swap="innerHTML"></div>
             </div>
         </div>
 
@@ -86,6 +89,24 @@
         <div id="review-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex items-center justify-center">
             <div class="bg-white rounded-lg shadow-xl p-6 max-w-2xl w-full max-h-[85vh] overflow-y-auto">
                 <div id="modal-content"></div>
+            </div>
+        </div>
+
+        <!-- Image Preview Modal -->
+        <div id="image-modal" class="fixed inset-0 bg-black bg-opacity-75 hidden flex items-center justify-center z-50" onclick="closeImageModal()">
+            <div class="relative max-w-7xl max-h-[95vh] w-full h-full flex items-center justify-center p-4">
+                <button onclick="closeImageModal()"
+                        class="absolute top-4 right-4 text-white hover:text-gray-300 text-4xl font-bold z-10 bg-black bg-opacity-50 rounded-full w-12 h-12 flex items-center justify-center">
+                    &times;
+                </button>
+                <div id="image-modal-title"
+                     class="absolute top-4 left-4 text-white bg-black bg-opacity-50 px-4 py-2 rounded text-sm font-medium z-10">
+                </div>
+                <img id="image-modal-img"
+                     src=""
+                     alt="Full size preview"
+                     class="max-w-full max-h-full object-contain rounded shadow-2xl"
+                     onclick="event.stopPropagation();">
             </div>
         </div>
     </div>

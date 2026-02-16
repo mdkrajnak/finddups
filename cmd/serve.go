@@ -78,6 +78,7 @@ func RunServe(args []string) error {
 	mux.HandleFunc("GET /api/deletions", api.ErrorHandler(handler.GetDeletions))
 	mux.HandleFunc("DELETE /api/deletions/{id}", api.ErrorHandler(handler.UnmarkDeletion))
 	mux.HandleFunc("POST /api/deletions/execute", api.ErrorHandler(handler.ExecuteDeletions))
+	mux.HandleFunc("GET /api/files/{id}/preview", api.ErrorHandler(handler.GetFilePreview))
 
 	// Wrap with logging middleware
 	httpHandler := api.LoggingMiddleware(mux)

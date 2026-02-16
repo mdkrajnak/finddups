@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"io"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -22,6 +23,7 @@ func NewTemplateManager(fs embed.FS) (*TemplateManager, error) {
 		"basename":    basename,
 		"dirname":     dirname,
 		"mul":         mul,
+		"isImage":     isImage,
 	}
 
 	tmpl, err := template.New("").Funcs(funcMap).ParseFS(fs, "templates/*.html")
@@ -130,5 +132,16 @@ func toInt64(v interface{}) int64 {
 		return int64(val)
 	default:
 		return 0
+	}
+}
+
+// isImage checks if a file path has an image extension.
+func isImage(path string) bool {
+	ext := strings.ToLower(filepath.Ext(path))
+	switch ext {
+	case ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".svg":
+		return true
+	default:
+		return false
 	}
 }
