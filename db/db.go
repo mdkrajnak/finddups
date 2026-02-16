@@ -32,7 +32,15 @@ func Open(path string) (*Store, error) {
 		return nil, fmt.Errorf("create schema: %w", err)
 	}
 
-	return &Store{db: db}, nil
+	store := &Store{db: db}
+
+	// Run migrations after schema creation
+	if err := store.runMigrations(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("run migrations: %w", err)
+	}
+
+	return store, nil
 }
 
 // Close closes the database connection.

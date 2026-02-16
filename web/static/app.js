@@ -174,17 +174,37 @@ document.addEventListener('submit', function(e) {
     if (e.target.id === 'mark-group-form') {
         e.preventDefault();
 
+        // Prevent double submission
+        if (!SubmissionState.start()) {
+            console.warn('Submission already in progress');
+            return;
+        }
+
         const form = e.target;
         const groupId = form.dataset.groupId;
         const selectedRadio = form.querySelector('input[name="keep_file_id"]:checked');
 
         if (!selectedRadio) {
+            SubmissionState.end();
             alert('Please select a file to keep');
             return;
         }
 
         // Convert value to integer as backend expects
         const keepFileId = parseInt(selectedRadio.value, 10);
+
+        const submitButton = form.querySelector('button[type="submit"]');
+
+        // Disable button and show loading
+        submitButton.disabled = true;
+        const originalHTML = submitButton.innerHTML;
+        submitButton.innerHTML = `
+            <svg class="animate-spin h-5 w-5 inline-block mr-2" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            Submitting...
+        `;
 
         // Send JSON request manually
         fetch(`/api/groups/${groupId}/mark`, {
@@ -222,37 +242,19 @@ document.addEventListener('submit', function(e) {
         .catch(error => {
             console.error('Request failed:', error);
             alert('Failed to submit: ' + error.message);
+        })
+        .finally(() => {
+            // Re-enable button and restore original state
+            submitButton.disabled = false;
+            submitButton.innerHTML = originalHTML;
+            SubmissionState.end();
         });
     }
 });
 
-// Close modal and refresh lists after successful htmx form submission
-// (Note: Currently not used since we handle form submission manually with fetch())
+// Handle deletions unmark to refresh groups list
+// (Update "Rereview" back to "Review" if all files in a group are unmarked)
 document.body.addEventListener('htmx:afterRequest', function(evt) {
-    // Check if this was a successful mark group request
-    if (evt.detail.successful &&
-        evt.detail.xhr.responseURL.includes('/api/groups/') &&
-        evt.detail.xhr.responseURL.includes('/mark')) {
-
-        // Close the modal
-        closeModal();
-
-        // Refresh the groups list
-        htmx.ajax('GET', '/api/groups', {
-            target: '#groups-list',
-            swap: 'innerHTML'
-        });
-
-        // Optionally refresh deletions list if visible
-        const deletionsView = document.getElementById('view-deletions');
-        if (deletionsView && !deletionsView.classList.contains('hidden')) {
-            htmx.ajax('GET', '/api/deletions', {
-                target: '#deletions-list',
-                swap: 'innerHTML'
-            });
-        }
-    }
-
     // When a file is unmarked from deletions, refresh groups list
     // to update "Rereview" back to "Review" if all files in a group are unmarked
     if (evt.detail.successful &&

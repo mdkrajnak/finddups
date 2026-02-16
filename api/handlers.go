@@ -237,15 +237,16 @@ func (h *Handler) MarkGroupForDeletion(w http.ResponseWriter, r *http.Request) e
 		return nil
 	}
 
-	// Mark all others for deletion
-	markedCount := 0
-	for _, f := range files {
-		if f.ID != req.KeepFileID {
-			if err := h.store.MarkForDeletion(f.ID); err != nil {
-				return fmt.Errorf("mark file %d: %w", f.ID, err)
-			}
-			markedCount++
-		}
+	// Extract file IDs
+	fileIDs := make([]int64, len(files))
+	for i, f := range files {
+		fileIDs[i] = f.ID
+	}
+
+	// Use transactional batch marking
+	markedCount, err := h.store.MarkGroupForDeletion(fileIDs, req.KeepFileID)
+	if err != nil {
+		return fmt.Errorf("mark group for deletion: %w", err)
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

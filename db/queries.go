@@ -411,6 +411,49 @@ func (s *Store) MarkForDeletion(fileID int64) error {
 	return err
 }
 
+// MarkGroupForDeletion marks multiple files for deletion atomically.
+// Returns count of files actually marked (may be less if some already marked).
+func (s *Store) MarkGroupForDeletion(fileIDs []int64, keepFileID int64) (int, error) {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return 0, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	stmt, err := tx.Prepare(`
+		INSERT INTO deletions (file_id, marked_at, status)
+		VALUES (?, ?, 'pending')
+		ON CONFLICT(file_id, status) DO NOTHING
+	`)
+	if err != nil {
+		return 0, fmt.Errorf("prepare statement: %w", err)
+	}
+	defer stmt.Close()
+
+	now := time.Now().UTC().Format(time.RFC3339)
+	markedCount := 0
+
+	for _, fileID := range fileIDs {
+		if fileID == keepFileID {
+			continue
+		}
+
+		result, err := stmt.Exec(fileID, now)
+		if err != nil {
+			return 0, fmt.Errorf("mark file %d: %w", fileID, err)
+		}
+
+		affected, _ := result.RowsAffected()
+		markedCount += int(affected)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("commit transaction: %w", err)
+	}
+
+	return markedCount, nil
+}
+
 // UnmarkForDeletion removes a deletion mark.
 func (s *Store) UnmarkForDeletion(fileID int64) error {
 	_, err := s.db.Exec(`DELETE FROM deletions WHERE file_id = ? AND status = 'pending'`, fileID)
