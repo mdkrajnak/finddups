@@ -1,8 +1,13 @@
 # finddups
 
-A fast duplicate file finder designed for large storage volumes. It uses a
-multi-stage hashing strategy to identify duplicates with very few false
-positives while avoiding full byte-by-byte comparison of every file.
+Photo libraries and NAS volumes accumulate duplicate files over years of
+backups, imports, and reshuffling. finddups finds them using a multi-stage
+hashing pipeline that avoids reading most files, keeping I/O and memory usage
+low even on spinning disks with millions of files.
+
+Once a scan is complete, a **web GUI** lets you browse duplicate groups, preview
+images, and decide what to keep — all from a browser. A full CLI is also
+included for terminal-first or scripted workflows.
 
 Built as a single static binary in Go, it runs well on low-resource systems
 like NAS devices with limited RAM and spinning disks.
@@ -45,6 +50,10 @@ make build-arm64
 ```
 
 ## Usage
+
+After scanning, the web GUI is the easiest way to browse duplicates and decide
+what to delete. The CLI commands below offer the same workflow for terminal-
+first or scripted use.
 
 ### Scan a directory
 
@@ -93,6 +102,40 @@ Pipeline:
 ```
 
 Add `--json` for machine-readable output.
+
+### Web GUI
+
+Start a web server to manage duplicates through a browser-based GUI:
+
+```
+finddups serve --db scan.db
+```
+
+Flags:
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--db` | `finddups.db` | Path to the SQLite database |
+| `--addr` | `:8080` | Listen address (e.g., `:8080` or `127.0.0.1:8080`) |
+
+The web GUI provides:
+
+- **Dashboard**: Real-time scan progress, duplicate summary, and statistics
+- **Duplicate Groups**: Browse and sort groups by wasted space, file count, or size
+- **Review Interface**: Select files to keep and mark others for deletion, with
+  inline image previews for photo libraries
+- **Deletion Management**: Preview and execute pending deletions with dry-run support
+
+Access the GUI by browsing to `http://localhost:8080` (or your NAS IP if running remotely).
+
+For secure remote access via SSH tunnel:
+
+```
+ssh -L 8080:localhost:8080 nas
+# Then browse to http://localhost:8080 on your local machine
+```
+
+The web server is safe to run concurrently with CLI commands like `finddups status` or even `finddups scan` (thanks to SQLite WAL mode).
 
 ### List duplicates
 
@@ -149,39 +192,6 @@ Skip the confirmation prompt:
 ```
 finddups delete --db scan.db --yes
 ```
-
-### Web GUI
-
-Start a web server to manage duplicates through a browser-based GUI:
-
-```
-finddups serve --db scan.db
-```
-
-Flags:
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--db` | `finddups.db` | Path to the SQLite database |
-| `--addr` | `:8080` | Listen address (e.g., `:8080` or `127.0.0.1:8080`) |
-
-The web GUI provides:
-
-- **Dashboard**: Real-time scan progress, duplicate summary, and statistics
-- **Duplicate Groups**: Browse and sort groups by wasted space, file count, or size
-- **Review Interface**: Select files to keep and mark others for deletion
-- **Deletion Management**: Preview and execute pending deletions with dry-run support
-
-Access the GUI by browsing to `http://localhost:8080` (or your NAS IP if running remotely).
-
-For secure remote access via SSH tunnel:
-
-```
-ssh -L 8080:localhost:8080 nas
-# Then browse to http://localhost:8080 on your local machine
-```
-
-The web server is safe to run concurrently with CLI commands like `finddups status` or even `finddups scan` (thanks to SQLite WAL mode).
 
 ## Deploying to a NAS
 
